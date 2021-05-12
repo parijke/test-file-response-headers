@@ -2,21 +2,23 @@
 
 namespace App\Entity;
 
-use App\Repository\UserRepository;
+use App\Entity\Traits\EntityIdTrait;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
+use Knp\DoctrineBehaviors\Contract\Entity\BlameableInterface;
+use Knp\DoctrineBehaviors\Contract\Entity\TimestampableInterface;
+use Knp\DoctrineBehaviors\Model\Blameable\BlameableTrait;
+use Knp\DoctrineBehaviors\Model\Timestampable\TimestampableTrait;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 /**
- * @ORM\Entity(repositoryClass=UserRepository::class)
+ * @ORM\Entity(repositoryClass="App\Repository\UserRepository")
  */
 class User implements UserInterface
 {
-    /**
-     * @ORM\Id
-     * @ORM\GeneratedValue
-     * @ORM\Column(type="integer")
-     */
-    private $id;
+  
+    use EntityIdTrait;
 
     /**
      * @ORM\Column(type="string", length=180, unique=true)
@@ -26,7 +28,7 @@ class User implements UserInterface
     /**
      * @ORM\Column(type="json")
      */
-    private $roles = [];
+    private array $roles = [];
 
     /**
      * @var string The hashed password
@@ -34,9 +36,35 @@ class User implements UserInterface
      */
     private $password;
 
-    public function getId(): ?int
+
+    /**
+     * @ORM\Column(type="string", length=255, nullable=false)
+     */
+    private $firstName;
+
+    /**
+     * @ORM\Column(type="string", length=255, nullable=false)
+     */
+    private $lastName;
+
+    /**
+     * @ORM\Column(type="string", length=20, nullable=true)
+     */
+    private $telegramId;
+
+    /**
+     * Date/Time of the last activity.
+     *
+     * @var \Datetime
+     * @ORM\Column(name="last_activity_at", type="datetime")
+     */
+    protected $lastActivityAt;
+
+
+
+    public function __construct()
     {
-        return $this->id;
+              $this->lastActivityAt = new \DateTime('now');
     }
 
     public function getEmail(): ?string
@@ -85,7 +113,7 @@ class User implements UserInterface
      */
     public function getPassword(): string
     {
-        return $this->password;
+        return (string) $this->password;
     }
 
     public function setPassword(string $password): self
@@ -96,14 +124,11 @@ class User implements UserInterface
     }
 
     /**
-     * Returning a salt is only needed, if you are not using a modern
-     * hashing algorithm (e.g. bcrypt or sodium) in your security.yaml.
-     *
      * @see UserInterface
      */
-    public function getSalt(): ?string
+    public function getSalt()
     {
-        return null;
+        // not needed when using the "bcrypt" algorithm in security.yaml
     }
 
     /**
@@ -114,4 +139,178 @@ class User implements UserInterface
         // If you store any temporary, sensitive data on the user, clear it here
         // $this->plainPassword = null;
     }
+
+    /**
+     * @return Collection|Todo[]
+     */
+    public function getTodos(): Collection
+    {
+        return $this->todos;
+    }
+
+    public function addTodo(Todo $todo): self
+    {
+        if (!$this->todos->contains($todo)) {
+            $this->todos[] = $todo;
+            $todo->setAssignedTo($this);
+        }
+
+        return $this;
+    }
+
+    public function removeTodo(Todo $todo): self
+    {
+        if ($this->todos->contains($todo)) {
+            $this->todos->removeElement($todo);
+            // set the owning side to null (unless already changed)
+            if ($todo->getAssignedTo() === $this) {
+                $todo->setAssignedTo(null);
+            }
+        }
+
+        return $this;
+    }
+
+    public function __toString()
+    {
+        return $this->getFullName();
+    }
+
+    public function getFirstName(): ?string
+    {
+        return $this->firstName;
+    }
+
+    public function setFirstName(?string $firstName): self
+    {
+        $this->firstName = $firstName;
+
+        return $this;
+    }
+
+    public function getLastName(): ?string
+    {
+        return $this->lastName;
+    }
+
+    public function setLastName(string $lastName): self
+    {
+        $this->lastName = $lastName;
+
+        return $this;
+    }
+
+    public function getFullName(): ?string
+    {
+        return trim($this->firstName).' '.trim($this->lastName);
+    }
+
+    /**
+     * @param \Datetime $lastActivityAt
+     */
+    public function setLastActivityAt($lastActivityAt)
+    {
+        $this->lastActivityAt = $lastActivityAt;
+    }
+
+    /**
+     * @return \Datetime
+     */
+    public function getLastActivityAt()
+    {
+        return $this->lastActivityAt;
+    }
+
+    /**
+     * @return bool Whether the user is active or not
+     */
+    public function isActiveNow(): bool
+    {
+        // Delay during wich the user will be considered as still active
+        $delay = new \DateTime('2 minutes ago');
+
+        return $this->getLastActivityAt() > $delay;
+    }
+
+    /**
+     * @return Collection|Timesheet[]
+     */
+    public function getTimesheets(): Collection
+    {
+        return $this->timesheets;
+    }
+
+    public function addTimesheet(Timesheet $timesheet): self
+    {
+        if (!$this->timesheets->contains($timesheet)) {
+            $this->timesheets[] = $timesheet;
+            $timesheet->setAssignedTo($this);
+        }
+
+        return $this;
+    }
+
+    public function removeTimesheet(Timesheet $timesheet): self
+    {
+        if ($this->timesheets->contains($timesheet)) {
+            $this->timesheets->removeElement($timesheet);
+            // set the owning side to null (unless already changed)
+            if ($timesheet->getAssignedTo() === $this) {
+                $timesheet->setAssignedTo(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection|CalendarEvent[]
+     */
+    public function getCalendarEvents(): Collection
+    {
+        return $this->calendarEvents;
+    }
+
+    public function addCalendarEvent(CalendarEvent $calendarEvent): self
+    {
+        if (!$this->calendarEvents->contains($calendarEvent)) {
+            $this->calendarEvents[] = $calendarEvent;
+            $calendarEvent->setOwner($this);
+        }
+
+        return $this;
+    }
+
+    public function removeCalendarEvent(CalendarEvent $calendarEvent): self
+    {
+        if ($this->calendarEvents->removeElement($calendarEvent)) {
+            // set the owning side to null (unless already changed)
+            if ($calendarEvent->getOwner() === $this) {
+                $calendarEvent->setOwner(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return mixed
+     */
+    public function getTelegramId()
+    {
+        return $this->telegramId;
+    }
+
+    /**
+     * @param mixed $telegramId
+     * @return User
+     */
+    public function setTelegramId($telegramId)
+    {
+        $this->telegramId = $telegramId;
+
+        return $this;
+    }
+
+
 }
